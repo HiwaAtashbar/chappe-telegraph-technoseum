@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Optischer Telegraf nach Claude Chappe (1794) – Interaktive Simulation</title>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #0f172a;
+      --border: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-sky: #38bdf8;
+      --accent-rose: #f43f5e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding: clamp(10px, 1.6vw, 24px);
+      min-height: 100vh;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 1680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(12px, 1.4vw, 18px);
+    }
+
+    /* Header */
+    .header-bar {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: clamp(12px, 1.5vw, 18px) clamp(14px, 2vw, 24px);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .header-title {
+      flex: 1 1 420px;
+    }
+
+    .header-title h1 {
+      font-size: clamp(1.05rem, 1.5vw, 1.4rem);
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.2px;
+    }
+
+    .header-title p {
+      font-size: clamp(0.78rem, 0.95vw, 0.9rem);
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .telemetry-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      flex: 0 1 auto;
+    }
+
+    .metric-pill {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      min-width: 130px;
+      flex: 1 1 130px;
+      text-align: center;
+    }
+
+    .metric-pill .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-secondary);
+      display: block;
+    }
+
+    .metric-pill .value {
+      font-size: clamp(0.95rem, 1.15vw, 1.15rem);
+      font-weight: 700;
+      font-family: 'Consolas', 'Courier New', monospace;
+      color: var(--accent-sky);
+      margin-top: 2px;
+      display: block;
+      white-space: nowrap;
+    }
+
+    .metric-pill.status-valid .value {
+      color: var(--accent-emerald);
+    }
+
+    .metric-pill.status-oblique .value {
+      color: var(--accent-amber);
+    }
+
+    /* Responsive Main Grid for all monitor aspect ratios */
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
+      gap: clamp(12px, 1.4vw, 18px);
+      align-items: start;
+    }
+
+    @media (max-width: 1120px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Canvas Card */
+    .canvas-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: clamp(10px, 1.2vw, 16px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .canvas-wrapper {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0b1120;
+      border-radius: 8px;
+      border: 1px solid #26334d;
+      overflow: hidden;
+    }
+
+    canvas#telegraphCanvas {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 860 / 540;
+      display: block;
+    }
+
+    /* Legend Bar below Canvas (Zero overlap with shapes) */
+    .legend-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.78rem;
+    }
+
+    @media (max-width: 768px) {
+      .legend-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .legend-bar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #cbd5e1;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Controls & Code Table Column */
+    .side-column {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .panel-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: clamp(12px, 1.3vw, 18px);
+    }
+
+    .panel-box h2 {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 12px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-box h2 span.sub {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+
+    /* Angle Controls */
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+      color: #e2e8f0;
+      gap: 4px;
+    }
+
+    .control-header strong {
+      font-family: 'Consolas', monospace;
+      color: var(--accent-sky);
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .btn-row-7 {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+
+    @media (max-width: 560px) {
+      .btn-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .btn-row-7 {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    button.angle-btn {
+      background: #0f172a;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 7px 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    button.angle-btn:hover {
+      border-color: var(--accent-sky);
+      color: #ffffff;
+    }
+
+    button.angle-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    button.angle-btn.oblique-btn.active {
+      background: #d97706;
+      border-color: #fbbf24;
+      color: #ffffff;
+    }
+
+    button.angle-btn.lock-btn.active {
+      background: #059669;
+      border-color: #34d399;
+      color: #ffffff;
+    }
+
+    .toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* Auto Transmitter (Unlimited Input Length) */
+    .transmitter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .transmitter-row input {
+      flex: 1;
+      min-width: 0;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #ffffff;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+    }
+
+    .transmitter-row input:focus {
+      outline: none;
+      border-color: var(--accent-sky);
+    }
+
+    .transmitter-row button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-send {
+      background: var(--accent-emerald);
+      color: #052e16;
+    }
+
+    .btn-stop {
+      background: var(--accent-rose);
+      color: #ffffff;
+    }
+
+    .tape-box {
+      background: #090d16;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.86rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .tape-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tape-scroll-area {
+      max-height: 76px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .tape-letters {
+      color: var(--accent-emerald);
+      letter-spacing: 2.5px;
+      font-weight: 700;
+      word-break: break-word;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+
+    .phase-badge {
+      font-size: 0.73rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    /* Chappe Code Grid */
+    .code-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+      gap: 5px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .code-cell {
+      background: #0f172a;
+      border: 1px solid #26334d;
+      border-radius: 6px;
+      padding: 5px 3px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .code-cell:hover {
+      border-color: var(--accent-sky);
+      transform: translateY(-1px);
+    }
+
+    .code-cell.active {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: var(--accent-emerald);
+      box-shadow: 0 0 0 1px var(--accent-emerald);
+    }
+
+    .code-cell .char {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #ffffff;
+      font-family: 'Consolas', monospace;
+    }
+
+    .code-cell .angles {
+      font-size: 0.62rem;
+      color: var(--text-secondary);
+      font-family: 'Consolas', monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Top Header & Live Telemetry -->
+  <header class="header-bar">
+    <div class="header-title">
+      <h1>Optischer Telegraf nach Claude Chappe (1794) – Interaktive Simulation</h1>
+      <p>Kinematische Simulation: Regulator (4,60 m), Indikatoren (2,00 m), Gegengewichte &amp; 2-Phasen-Protokoll</p>
+    </div>
+    <div class="telemetry-strip">
+      <div class="metric-pill" id="statusPill">
+        <span class="label">Betriebsphase</span>
+        <span class="value" id="phaseText">VERRIEGELT (0°)</span>
+      </div>
+      <div class="metric-pill">
+        <span class="label">Dekodiertes Zeichen</span>
+        <span class="value" id="decodedCharDisplay">A</span>
+      </div>
+      <div class="metric-pill">
+        <span class="label">Winkel (α | βL | βR)</span>
+        <span class="value" id="angleTupleDisplay">0° | 45° | 90°</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="main-grid">
+    <!-- Left Column: Multi-Viewport Engineering Canvas -->
+    <div class="canvas-card">
+      <div class="canvas-wrapper">
+        <canvas id="telegraphCanvas" width="860" height="540"></canvas>
+      </div>
+      <!-- Non-overlapping Legend below Canvas -->
+      <div class="legend-bar">
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:#1e293b; border:2px solid #f59e0b;"></span>
+          <span><strong>Regulator (4,60 m):</strong> Mittelbalken mit Lamellen</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:#0f172a; border:2px solid #38bdf8;"></span>
+          <span><strong>Indikatoren (2,00 m):</strong> Linker &amp; rechter Signalflügel</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:#64748b; border:1px solid #cbd5e1;"></span>
+          <span><strong>Gegengewichte:</strong> Unsichtbar auf 12 km Distanz</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:#10b981;"></span>
+          <span><strong>Seilzug &amp; Manipulator:</strong> 1:1-Kopplung in Kabine</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Controls, Transmitter & Code Table -->
+    <div class="side-column">
+      <!-- 1. Manual Mechanical Controls -->
+      <div class="panel-box">
+        <h2>
+          <span>1. Mechanische Hebelsteuerung (Manipulator)</span>
+          <span class="sub">Winkel in 45°-Rastern</span>
+        </h2>
+
+        <!-- Regulator Alpha -->
+        <div class="control-group">
+          <div class="control-header">
+            <span>Regulator-Winkel (α – Mittelbalken):</span>
+            <strong id="lblAlpha">0° (Horizontal – Leseposition)</strong>
+          </div>
+          <div class="btn-row">
+            <button class="angle-btn lock-btn active" onclick="setRegulator(0)" id="btnReg0">0° Horizontal (Lesen)</button>
+            <button class="angle-btn oblique-btn" onclick="setRegulator(45)" id="btnReg45">45° Schräg (Einstellen)</button>
+            <button class="angle-btn lock-btn" onclick="setRegulator(90)" id="btnReg90">90° Vertikal (Lesen)</button>
+            <button class="angle-btn oblique-btn" onclick="setRegulator(135)" id="btnReg135">135° Schräg (Einstellen)</button>
+          </div>
+        </div>
+
+        <!-- Left Indicator Beta_L -->
+        <div class="control-group">
+          <div class="control-header">
+            <span>Linker Indikator (βL relativ zum Regulator):</span>
+            <strong id="lblBetaL">45°</strong>
+          </div>
+          <div class="btn-row-7" id="leftIndButtons"></div>
+        </div>
+
+        <!-- Right Indicator Beta_R -->
+        <div class="control-group">
+          <div class="control-header">
+            <span>Rechter Indikator (βR relativ zum Regulator):</span>
+            <strong id="lblBetaR">90°</strong>
+          </div>
+          <div class="btn-row-7" id="rightIndButtons"></div>
+        </div>
+
+        <!-- Visual Overlays Toggles -->
+        <div class="toggle-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chkCables" checked onchange="requestRender()" />
+            <span>Seilzüge &amp; Umlenkrollen anzeigen</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="chkEnvelope" checked onchange="requestRender()" />
+            <span>Kinematische Hüllkurve (Freiraum-Radius)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. Automatic 2-Phase Telegram Transmitter (Unlimited Message Length) -->
+      <div class="panel-box">
+        <h2>
+          <span>2. Automatischer 2-Phasen-Telegrammsender</span>
+          <span class="sub">Unbegrenzte Nachrichtenlänge</span>
+        </h2>
+        <div class="transmitter-row">
+          <input type="text" id="msgInput" value="TECHNOSEUM MANNHEIM" placeholder="Beliebig langen Text eingeben (A-Z, 0-9, Leerzeichen)..." />
+          <button class="btn-send" id="btnStartTx" onclick="startTransmission()">Senden</button>
+          <button class="btn-stop" id="btnStopTx" onclick="stopTransmission()" style="display:none;">Stopp</button>
+        </div>
+        <div class="tape-box">
+          <div class="tape-header">
+            <span style="color:#64748b; font-size:0.74rem;">EMPFANGSSTREIFEN (PROTOKOLL):</span>
+            <span class="phase-badge" id="txStepBadge">Bereit</span>
+          </div>
+          <div class="tape-scroll-area" id="tapeScrollArea">
+            <span class="tape-letters" id="receivedTape">_</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Interactive Chappe Codebook -->
+      <div class="panel-box">
+        <h2>
+          <span>3. Chappe-Codetabelle (Klicken zum Einstellen)</span>
+          <span class="sub">36 Zeichen + Steuersignale</span>
+        </h2>
+        <div class="code-grid" id="codeGridContainer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /**
+   * 1. AUTHENTIC CHAPPE CODEBOOK (36 Alphanumeric + Historical Control Signals)
+   * Angles: alpha in {0, 90} (lock positions), betaL and betaR in {0, 45, 90, 135, 180, 225, 270, 315}
+   * Note: 180° means folded flat overlapping the Regulator beam (verdeckt).
+   */
+  const INDICATOR_ANGLES = [0, 45, 90, 135, 180, 225, 315];
+
+  const CHAPPE_CODES = [
+    // Row 1: Alpha = 0° (Horizontal Lock)
+    { char: 'A', alpha: 0, bL: 45,  bR: 90,  desc: 'Buchstabe A' },
+    { char: 'B', alpha: 0, bL: 90,  bR: 90,  desc: 'Buchstabe B' },
+    { char: 'C', alpha: 0, bL: 135, bR: 90,  desc: 'Buchstabe C' },
+    { char: 'D', alpha: 0, bL: 225, bR: 90,  desc: 'Buchstabe D' },
+    { char: 'E', alpha: 0, bL: 315, bR: 90,  desc: 'Buchstabe E' },
+    { char: 'F', alpha: 0, bL: 0,   bR: 90,  desc: 'Buchstabe F' },
+    { char: 'G', alpha: 0, bL: 90,  bR: 45,  desc: 'Buchstabe G' },
+    { char: 'H', alpha: 0, bL: 90,  bR: 135, desc: 'Buchstabe H' },
+    { char: 'I', alpha: 0, bL: 90,  bR: 225, desc: 'Buchstabe I' },
+    { char: 'J', alpha: 0, bL: 90,  bR: 315, desc: 'Buchstabe J' },
+    { char: 'K', alpha: 0, bL: 90,  bR: 0,   desc: 'Buchstabe K' },
+    { char: 'L', alpha: 0, bL: 45,  bR: 45,  desc: 'Buchstabe L' },
+    { char: 'M', alpha: 0, bL: 135, bR: 135, desc: 'Buchstabe M' },
+    { char: 'N', alpha: 0, bL: 225, bR: 225, desc: 'Buchstabe N' },
+    { char: 'O', alpha: 0, bL: 315, bR: 315, desc: 'Buchstabe O' },
+    { char: 'P', alpha: 0, bL: 45,  bR: 135, desc: 'Buchstabe P' },
+    { char: 'Q', alpha: 0, bL: 135, bR: 45,  desc: 'Buchstabe Q' },
+    { char: 'R', alpha: 0, bL: 225, bR: 315, desc: 'Buchstabe R' },
+
+    // Row 2: Alpha = 90° (Vertical Lock)
+    { char: 'S', alpha: 90, bL: 45,  bR: 90,  desc: 'Buchstabe S' },
+    { char: 'T', alpha: 90, bL: 90,  bR: 90,  desc: 'Buchstabe T' },
+    { char: 'U', alpha: 90, bL: 135, bR: 90,  desc: 'Buchstabe U' },
+    { char: 'V', alpha: 90, bL: 225, bR: 90,  desc: 'Buchstabe V' },
+    { char: 'W', alpha: 90, bL: 315, bR: 90,  desc: 'Buchstabe W' },
+    { char: 'X', alpha: 90, bL: 0,   bR: 90,  desc: 'Buchstabe X' },
+    { char: 'Y', alpha: 90, bL: 90,  bR: 45,  desc: 'Buchstabe Y' },
+    { char: 'Z', alpha: 90, bL: 90,  bR: 135, desc: 'Buchstabe Z' },
+    { char: '0', alpha: 90, bL: 90,  bR: 225, desc: 'Ziffer 0' },
+    { char: '1', alpha: 90, bL: 90,  bR: 315, desc: 'Ziffer 1' },
+    { char: '2', alpha: 90, bL: 90,  bR: 0,   desc: 'Ziffer 2' },
+    { char: '3', alpha: 90, bL: 45,  bR: 45,  desc: 'Ziffer 3' },
+    { char: '4', alpha: 90, bL: 135, bR: 135, desc: 'Ziffer 4' },
+    { char: '5', alpha: 90, bL: 225, bR: 225, desc: 'Ziffer 5' },
+    { char: '6', alpha: 90, bL: 315, bR: 315, desc: 'Ziffer 6' },
+    { char: '7', alpha: 90, bL: 45,  bR: 135, desc: 'Ziffer 7' },
+    { char: '8', alpha: 90, bL: 135, bR: 45,  desc: 'Ziffer 8' },
+    { char: '9', alpha: 90, bL: 180, bR: 180, desc: 'Ziffer 9 (Ruhe/Verdeckt)' }
+  ];
+
+  // Logical coordinate system remains strictly 860x540 to guarantee zero text/shape collision
+  const LOGICAL_WIDTH = 860;
+  const LOGICAL_HEIGHT = 540;
+
+  // State Variables (Target vs Current Animated Angles in Degrees)
+  const state = {
+    targetAlpha: 0,
+    targetBetaL: 45,
+    targetBetaR: 90,
+    currAlpha: 0,
+    currBetaL: 45,
+    currBetaR: 90,
+    txTimer: null,
+    txActive: false,
+    receivedText: ''
+  };
+
+  const canvas = document.getElementById('telegraphCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // HiDPI / Retina Scaling while maintaining exact 860x540 logical drawing coordinates
+  function setupCanvasHiDPI() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    canvas.width = LOGICAL_WIDTH * dpr;
+    canvas.height = LOGICAL_HEIGHT * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Build Indicator Angle Buttons & Code Grid
+  function initUI() {
+    setupCanvasHiDPI();
+    window.addEventListener('resize', () => {
+      setupCanvasHiDPI();
+      drawScene();
+    });
+
+    const leftContainer = document.getElementById('leftIndButtons');
+    const rightContainer = document.getElementById('rightIndButtons');
+
+    INDICATOR_ANGLES.forEach(ang => {
+      const btnL = document.createElement('button');
+      btnL.className = 'angle-btn';
+      btnL.id = `btnLeft_${ang}`;
+      btnL.textContent = ang === 180 ? '180° (Verdeckt)' : `${ang}°`;
+      btnL.onclick = () => setLeftIndicator(ang);
+      leftContainer.appendChild(btnL);
+
+      const btnR = document.createElement('button');
+      btnR.className = 'angle-btn';
+      btnR.id = `btnRight_${ang}`;
+      btnR.textContent = ang === 180 ? '180° (Verdeckt)' : `${ang}°`;
+      btnR.onclick = () => setRightIndicator(ang);
+      rightContainer.appendChild(btnR);
+    });
+
+    const grid = document.getElementById('codeGridContainer');
+    CHAPPE_CODES.forEach(item => {
+      const cell = document.createElement('div');
+      cell.className = 'code-cell';
+      cell.id = `cell_${item.char}`;
+      cell.innerHTML = `
+        <span class="char">${item.char}</span>
+        <span class="angles">${item.alpha}°|${item.bL}°|${item.bR}°</span>
+      `;
+      cell.onclick = () => selectCodeItem(item);
+      grid.appendChild(cell);
+    });
+
+    updateUIState();
+    requestAnimationFrame(animateLoop);
+  }
+
+  function setRegulator(alpha) {
+    state.targetAlpha = alpha;
+    updateUIState();
+  }
+
+  function setLeftIndicator(betaL) {
+    state.targetBetaL = betaL;
+    updateUIState();
+  }
+
+  function setRightIndicator(betaR) {
+    state.targetBetaR = betaR;
+    updateUIState();
+  }
+
+  function selectCodeItem(item) {
+    if (state.txActive) stopTransmission();
+    state.targetAlpha = item.alpha;
+    state.targetBetaL = item.bL;
+    state.targetBetaR = item.bR;
+    updateUIState();
+  }
+
+  function findMatchingCode(alpha, bL, bR) {
+    const normAlpha = (alpha === 45) ? 0 : (alpha === 135 ? 90 : alpha);
+    const exact = CHAPPE_CODES.find(c => c.alpha === normAlpha && c.bL === bL && c.bR === bR);
+    return exact || null;
+  }
+
+  function updateUIState() {
+    [0, 45, 90, 135].forEach(a => {
+      const btn = document.getElementById(`btnReg${a}`);
+      if (btn) btn.classList.toggle('active', state.targetAlpha === a);
+    });
+
+    INDICATOR_ANGLES.forEach(a => {
+      const bL = document.getElementById(`btnLeft_${a}`);
+      const bR = document.getElementById(`btnRight_${a}`);
+      if (bL) bL.classList.toggle('active', state.targetBetaL === a);
+      if (bR) bR.classList.toggle('active', state.targetBetaR === a);
+    });
+
+    const isOblique = (state.targetAlpha === 45 || state.targetAlpha === 135);
+    const regDescriptions = {
+      0: '0° (Horizontal – Leseposition)',
+      45: '45° (Schräg – Einstellphase / Nicht ablesen)',
+      90: '90° (Vertikal – Leseposition)',
+      135: '135° (Schräg – Einstellphase / Nicht ablesen)'
+    };
+    document.getElementById('lblAlpha').textContent = regDescriptions[state.targetAlpha];
+    document.getElementById('lblBetaL').textContent =
+      state.targetBetaL === 180 ? '180° (Verdeckt hinter Regulator)' : `${state.targetBetaL}°`;
+    document.getElementById('lblBetaR').textContent =
+      state.targetBetaR === 180 ? '180° (Verdeckt hinter Regulator)' : `${state.targetBetaR}°`;
+
+    document.getElementById('angleTupleDisplay').textContent =
+      `${state.targetAlpha}° | ${state.targetBetaL}° | ${state.targetBetaR}°`;
+
+    const match = findMatchingCode(state.targetAlpha, state.targetBetaL, state.targetBetaR);
+    const statusPill = document.getElementById('statusPill');
+    const phaseText = document.getElementById('phaseText');
+    const decodedCharDisplay = document.getElementById('decodedCharDisplay');
+
+    CHAPPE_CODES.forEach(c => {
+      const cell = document.getElementById(`cell_${c.char}`);
+      if (cell) {
+        const isCurrent = (!isOblique && c.alpha === state.targetAlpha && c.bL === state.targetBetaL && c.bR === state.targetBetaR);
+        cell.classList.toggle('active', isCurrent);
+      }
+    });
+
+    if (isOblique) {
+      statusPill.className = 'metric-pill status-oblique';
+      phaseText.textContent = `EINSTELLPHASE (${state.targetAlpha}°)`;
+      decodedCharDisplay.textContent = match ? `(${match.char} vorb.)` : '—';
+    } else {
+      statusPill.className = 'metric-pill status-valid';
+      phaseText.textContent = `VERRIEGELT (${state.targetAlpha}°)`;
+      decodedCharDisplay.textContent = match ? match.char : 'Unbekannt';
+    }
+  }
+
+  /**
+   * 2. TWO-PHASE AUTOMATIC TELEGRAM TRANSMISSION (UNLIMITED MESSAGE LENGTH)
+   * Supports arbitrarily long texts, normalizes German Umlauts (Ä->AE, Ö->OE, Ü->UE, ß->SS),
+   * preserves spaces between words, and auto-scrolls the receiving paper tape.
+   */
+  function normalizeInputText(str) {
+    return str
+      .toUpperCase()
+      .replace(/Ä/g, 'AE')
+      .replace(/Ö/g, 'OE')
+      .replace(/Ü/g, 'UE')
+      .replace(/ß/g, 'SS')
+      .replace(/[^A-Z0-9 ]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function startTransmission() {
+    const raw = normalizeInputText(document.getElementById('msgInput').value);
+    if (!raw) return;
+
+    stopTransmission();
+    state.txActive = true;
+    state.receivedText = '';
+    const tapeEl = document.getElementById('receivedTape');
+    const scrollArea = document.getElementById('tapeScrollArea');
+    tapeEl.textContent = '';
+
+    document.getElementById('btnStartTx').style.display = 'none';
+    document.getElementById('btnStopTx').style.display = 'inline-block';
+
+    let charIndex = 0;
+    let phase = 1; // 1 = Oblique preparation, 2 = Lock & Read
+
+    function stepTx() {
+      if (!state.txActive || charIndex >= raw.length) {
+        stopTransmission();
+        document.getElementById('txStepBadge').textContent = `Übertragung beendet (${raw.length} Zeichen)`;
+        return;
+      }
+
+      const ch = raw[charIndex];
+
+      // Handle word space cleanly and proceed immediately to next character
+      if (ch === ' ') {
+        state.receivedText += ' ';
+        tapeEl.textContent = state.receivedText;
+        scrollArea.scrollTop = scrollArea.scrollHeight;
+        document.getElementById('txStepBadge').textContent =
+          `[${charIndex + 1}/${raw.length}] Wortzwischenraum`;
+        charIndex++;
+        state.txTimer = setTimeout(stepTx, 450);
+        return;
+      }
+
+      const entry = CHAPPE_CODES.find(c => c.char === ch) || CHAPPE_CODES[0];
+
+      if (phase === 1) {
+        // Phase 1: Move Regulator to Oblique (45° if target is 0°, 135° if target is 90°) and set wings
+        state.targetAlpha = (entry.alpha === 0) ? 45 : 135;
+        state.targetBetaL = entry.bL;
+        state.targetBetaR = entry.bR;
+        document.getElementById('txStepBadge').textContent =
+          `[${charIndex + 1}/${raw.length}] "${ch}" [1/2]: Schräg (${state.targetAlpha}°)`;
+        updateUIState();
+        phase = 2;
+        state.txTimer = setTimeout(stepTx, 1100);
+      } else {
+        // Phase 2: Lock Regulator to 0° or 90° -> Valid signal read by next station
+        state.targetAlpha = entry.alpha;
+        state.receivedText += ch;
+        tapeEl.textContent = state.receivedText;
+        scrollArea.scrollTop = scrollArea.scrollHeight;
+        document.getElementById('txStepBadge').textContent =
+          `[${charIndex + 1}/${raw.length}] "${ch}" [2/2]: Verriegelt (${entry.alpha}°)`;
+        updateUIState();
+        charIndex++;
+        phase = 1;
+        state.txTimer = setTimeout(stepTx, 1200);
+      }
+    }
+
+    stepTx();
+  }
+
+  function stopTransmission() {
+    state.txActive = false;
+    if (state.txTimer) {
+      clearTimeout(state.txTimer);
+      state.txTimer = null;
+    }
+    document.getElementById('btnStartTx').style.display = 'inline-block';
+    document.getElementById('btnStopTx').style.display = 'none';
+  }
+
+  /**
+   * 3. SHORTEST-PATH ANGULAR INTERPOLATION & RENDER LOOP
+   */
+  function lerpAngleDeg(curr, target, factor) {
+    let diff = ((target - curr + 540) % 360) - 180;
+    if (Math.abs(diff) < 0.15) return target;
+    return (curr + diff * factor + 360) % 360;
+  }
+
+  function requestRender() {
+    drawScene();
+  }
+
+  function animateLoop() {
+    state.currAlpha = lerpAngleDeg(state.currAlpha, state.targetAlpha, 0.14);
+    state.currBetaL = lerpAngleDeg(state.currBetaL, state.targetBetaL, 0.14);
+    state.currBetaR = lerpAngleDeg(state.currBetaR, state.targetBetaR, 0.14);
+
+    drawScene();
+    requestAnimationFrame(animateLoop);
+  }
+
+  /**
+   * 4. COLLISION-FREE MULTI-VIEWPORT ENGINEERING RENDERER
+   * Left Viewport (0..562): Rooftop, Mast, Regulator, Indicators & Lower Cabin
+   * Top-Right Viewport (574..848, 12..266): Fernrohr-Ansicht (12 km Distance)
+   * Bottom-Right Viewport (574..848, 278..528): Manipulator-Hebelwerk (Operator Cabin)
+   */
+  function drawScene() {
+    ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+    // --- LEFT VIEWPORT: SKY & ROOF ---
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 395);
+    skyGrad.addColorStop(0, '#0f172a');
+    skyGrad.addColorStop(1, '#1e293b');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 562, 395);
+
+    // Top Header Banner inside Left Viewport (y: 10..46 -> Strictly above sweep zone y >= 68.8)
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(12, 10, 538, 34, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HAUPTANSICHT: TELEGRAFENMAST (SYSTEM CHAPPE)', 24, 27);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11.5px Consolas, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('Maßstab 1:34 | Max. Radius: 4,30 m', 538, 27);
+
+    // Pivot & Scale Constants
+    const X0 = 280;
+    const Y0 = 215;
+    const R_REG = 78; // 2.30 m half-length
+    const R_IND = 68; // 2.00 m wing length
+    const R_CW  = 54; // 1.60 m counterweight rod
+
+    // Optional Kinematic Safety Envelope Circle (Radius = 148 px)
+    if (document.getElementById('chkEnvelope').checked) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(X0, Y0, R_REG + R_IND + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- TECHNOSEUM ROOF & OPERATOR CABIN (y: 395..540 -> Strictly below sweep zone y <= 361.2) ---
+    ctx.fillStyle = '#0b1120';
+    ctx.fillRect(0, 395, 562, 145);
+
+    // Roof Parapet Beam
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, 390, 562, 8);
+
+    // Roof Label (placed at left edge of roof, far away from mast)
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('DACHTERRASSE TECHNOSEUM', 16, 412);
+
+    // Operator Cabin Cutaway Box (x: 185..375, y: 405..526)
+    ctx.fillStyle = '#162032';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(185, 405, 190, 120, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Cabin Caption at bottom of cabin box (no overlap with mini-manipulator at y=455)
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('BEDIENKABINE (MANIPULATOR)', X0, 514);
+
+    // Vertical Wooden Mast & Iron Truss Bracing (from Cabin Ceiling y=405 up to Pivot y=215)
+    ctx.fillStyle = '#78350f';
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(X0 - 7, Y0, 14, 190);
+    ctx.strokeRect(X0 - 7, Y0, 14, 190);
+
+    // Mast Side Struts on Roof
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(X0 - 7, 325);
+    ctx.lineTo(X0 - 48, 390);
+    ctx.moveTo(X0 + 7, 325);
+    ctx.lineTo(X0 + 48, 390);
+    ctx.stroke();
+
+    // Compute Joint Coordinates
+    const radAlpha = (-state.currAlpha * Math.PI) / 180;
+    const leftJointX  = X0 - R_REG * Math.cos(radAlpha);
+    const leftJointY  = Y0 - R_REG * Math.sin(radAlpha);
+    const rightJointX = X0 + R_REG * Math.cos(radAlpha);
+    const rightJointY = Y0 + R_REG * Math.sin(radAlpha);
+
+    // --- CLOSED-LOOP CABLE & PULLEY DRIVE (if enabled) ---
+    const cabinPivotY = 456;
+    if (document.getElementById('chkCables').checked) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.55)';
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([3, 3]);
+
+      // Cables from Cabin Manipulator up to Main Pivot
+      ctx.beginPath();
+      ctx.moveTo(X0 - 18, cabinPivotY);
+      ctx.lineTo(X0 - 5, Y0);
+      ctx.moveTo(X0 + 18, cabinPivotY);
+      ctx.lineTo(X0 + 5, Y0);
+
+      // Cables along Regulator out to Left & Right Indicator Pulleys
+      ctx.moveTo(X0, Y0 - 4);
+      ctx.lineTo(leftJointX, leftJointY - 4);
+      ctx.moveTo(X0, Y0 + 4);
+      ctx.lineTo(rightJointX, rightJointY + 4);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- DRAW REGULATOR (4.60 m Central Beam with Louvers / Windlamellen) ---
+    ctx.save();
+    ctx.translate(X0, Y0);
+    ctx.rotate(radAlpha);
+
+    // Outer Frame of Regulator
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.roundRect(-R_REG, -9, R_REG * 2, 18, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // Wooden Wind Louvers (Jalousien)
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.2;
+    for (let lx = -R_REG + 10; lx <= R_REG - 10; lx += 8) {
+      ctx.beginPath();
+      ctx.moveTo(lx, -6);
+      ctx.lineTo(lx, 6);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // --- DRAW LEFT & RIGHT INDICATORS + IRON COUNTERWEIGHTS ---
+    const absRadL = ((-state.currAlpha - state.currBetaL + 180) * Math.PI) / 180;
+    const absRadR = ((-state.currAlpha - state.currBetaR) * Math.PI) / 180;
+
+    drawIndicatorWing(leftJointX, leftJointY, absRadL, R_IND, R_CW);
+    drawIndicatorWing(rightJointX, rightJointY, absRadR, R_IND, R_CW);
+
+    // Central Axle Brass Hub
+    ctx.fillStyle = '#f59e0b';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(X0, Y0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Mini Manipulator inside Cabin (at X0 = 280, cabinPivotY = 456, scale = 0.28)
+    drawMiniManipulator(X0, cabinPivotY, 0.28, radAlpha, absRadL, absRadR);
+
+    // --- VERTICAL STRUCTURAL DIVIDER AT X = 562 ---
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(564, 0);
+    ctx.lineTo(564, 540);
+    ctx.stroke();
+
+    // --- TOP-RIGHT VIEWPORT: FERNROHR-ANSICHT (12 km Distance) ---
+    drawTelescopeViewport(576, 10, 272, 254, radAlpha, absRadL, absRadR);
+
+    // --- BOTTOM-RIGHT VIEWPORT: MANIPULATOR-GROSSANSICHT ---
+    drawManipulatorViewport(576, 276, 272, 254, radAlpha, absRadL, absRadR);
+  }
+
+  function drawIndicatorWing(jx, jy, angleRad, rWing, rCw) {
+    ctx.save();
+    ctx.translate(jx, jy);
+    ctx.rotate(angleRad);
+
+    // 1. Iron Counterweight Rod & Poise Ball (Opposite direction: -rCw to 0)
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-rCw, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(-rCw, 0, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 2. Main Wooden Indicator Wing (0 to +rWing)
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(0, -6.5, rWing, 13, 2.5);
+    ctx.fill();
+    ctx.stroke();
+
+    // Louvers inside Indicator Wing
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    for (let wx = 8; wx <= rWing - 8; wx += 8) {
+      ctx.beginPath();
+      ctx.moveTo(wx, -4);
+      ctx.lineTo(wx, 4);
+      ctx.stroke();
+    }
+
+    // Pulley Joint Hub
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawMiniManipulator(cx, cy, scale, radAlpha, absRadL, absRadR) {
+    const rReg = 78 * scale;
+    const rInd = 68 * scale;
+
+    const lX = cx - rReg * Math.cos(radAlpha);
+    const lY = cy - rReg * Math.sin(radAlpha);
+    const rX = cx + rReg * Math.cos(radAlpha);
+    const rY = cy + rReg * Math.sin(radAlpha);
+
+    // Brass Regulator Bar
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(rX, rY);
+    ctx.stroke();
+
+    // Left & Right Brass Handles
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(lX + rInd * Math.cos(absRadL), lY + rInd * Math.sin(absRadL));
+    ctx.moveTo(rX, rY);
+    ctx.lineTo(rX + rInd * Math.cos(absRadR), rY + rInd * Math.sin(absRadR));
+    ctx.stroke();
+
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /**
+   * TOP-RIGHT SUB-VIEWPORT: TELESCOPE VIEW FROM 12 KM
+   * Strict separation of header (y: 10..42), lens circle (center y=134, r=76), and footer (y: 230..258)
+   */
+  function drawTelescopeViewport(x, y, w, h, radAlpha, absRadL, absRadR) {
+    ctx.fillStyle = '#111827';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header Bar (Never overlaps lens)
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, w - 4, 30, [6, 6, 0, 0]);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 11.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FERNROHR-ANSICHT (12 KM DISTANZ)', x + w / 2, y + 17);
+
+    // Circular Telescope Lens
+    const cx = x + w / 2;
+    const cy = y + 134;
+    const radius = 76;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Bright Distant Sky Backdrop
+    const sky = ctx.createLinearGradient(cx, cy - radius, cx, cy + radius);
+    sky.addColorStop(0, '#bae6fd');
+    sky.addColorStop(0.78, '#e0f2fe');
+    sky.addColorStop(0.79, '#94a3b8');
+    sky.addColorStop(1, '#64748b');
+    ctx.fillStyle = sky;
+    ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+    // Distant Silhouette Tower & Mast
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(cx - 12, cy + 32, 24, 48);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(cx - 2, cy - 8, 4, 40);
+
+    // Silhouette Semaphore Arms (Counterweights are optically invisible at 12 km!)
+    const pivY = cy - 6;
+    const rReg = 30;
+    const rInd = 26;
+
+    const lX = cx - rReg * Math.cos(radAlpha);
+    const lY = pivY - rReg * Math.sin(radAlpha);
+    const rX = cx + rReg * Math.cos(radAlpha);
+    const rY = pivY + rReg * Math.sin(radAlpha);
+
+    ctx.strokeStyle = '#090d16';
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 6.5;
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(rX, rY);
+    ctx.stroke();
+
+    ctx.lineWidth = 5.5;
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(lX + rInd * Math.cos(absRadL), lY + rInd * Math.sin(absRadL));
+    ctx.moveTo(rX, rY);
+    ctx.lineTo(rX + rInd * Math.cos(absRadR), rY + rInd * Math.sin(absRadR));
+    ctx.stroke();
+
+    // Crosshair Reticle
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx - radius, pivY);
+    ctx.lineTo(cx + radius, pivY);
+    ctx.moveTo(cx, cy - radius);
+    ctx.lineTo(cx, cy + radius);
+    ctx.stroke();
+    ctx.restore();
+
+    // Brass Telescope Rim
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Footer Status inside Top-Right Viewport
+    const isOblique = (state.targetAlpha === 45 || state.targetAlpha === 135);
+    ctx.fillStyle = isOblique ? '#fbbf24' : '#34d399';
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      isOblique
+        ? 'Schräglage: Nachbarstation wartet...'
+        : 'Verriegelt: Signal wird protokolliert!',
+      cx,
+      y + h - 18
+    );
+  }
+
+  /**
+   * BOTTOM-RIGHT SUB-VIEWPORT: OPERATOR CABIN MANIPULATOR DETAIL
+   * Strict separation of header (y: 276..308), dial circle (center y=400, r=74), and footer
+   */
+  function drawManipulatorViewport(x, y, w, h, radAlpha, absRadL, absRadR) {
+    ctx.fillStyle = '#111827';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header Bar
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, w - 4, 30, [6, 6, 0, 0]);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 11.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HEBELWERK IN DER BEDIENKABINE', x + w / 2, y + 17);
+
+    const cx = x + w / 2;
+    const cy = y + 124;
+    const dialRadius = 74;
+
+    // 45-Degree Detent Protractor Plate
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, dialRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 8 Rastkerben (45° Detent Notches)
+    for (let deg = 0; deg < 360; deg += 45) {
+      const r = (deg * Math.PI) / 180;
+      ctx.strokeStyle = (deg % 90 === 0) ? '#10b981' : '#f59e0b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + (dialRadius - 9) * Math.cos(r), cy + (dialRadius - 9) * Math.sin(r));
+      ctx.lineTo(cx + dialRadius * Math.cos(r), cy + dialRadius * Math.sin(r));
+      ctx.stroke();
+    }
+
+    // 1:1 Synchronized Brass Manipulator Arms (Guaranteed inside dialRadius = 74)
+    const rReg = 36;
+    const rInd = 31;
+
+    const lX = cx - rReg * Math.cos(radAlpha);
+    const lY = cy - rReg * Math.sin(radAlpha);
+    const rX = cx + rReg * Math.cos(radAlpha);
+    const rY = cy + rReg * Math.sin(radAlpha);
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(rX, rY);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(lX, lY);
+    ctx.lineTo(lX + rInd * Math.cos(absRadL), lY + rInd * Math.sin(absRadL));
+    ctx.moveTo(rX, rY);
+    ctx.lineTo(rX + rInd * Math.cos(absRadR), rY + rInd * Math.sin(absRadR));
+    ctx.stroke();
+
+    // Wooden Grip Knobs at Indicator Tips
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(lX + rInd * Math.cos(absRadL), lY + rInd * Math.sin(absRadL), 4, 0, Math.PI * 2);
+    ctx.arc(rX + rInd * Math.cos(absRadR), rY + rInd * Math.sin(absRadR), 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Footer Caption
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Synchroner Seilzugtrieb (8 × 45°-Rastkerben)', cx, y + h - 18);
+  }
+
+  window.addEventListener('DOMContentLoaded', initUI);
+</script>
+</body>
+</html>
